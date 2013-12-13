@@ -1,9 +1,8 @@
 require "mechanize"
 class SimaParser
   
-  AVAILABLE_STATION_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 11]
-  
-  SIMA_WEBROOT = "http://www.nl.gob.mx/?P=sima_metropolitano&url=SistemaGubernamentales/sima/ReporteDiarioDetallado.aspx"
+  AVAILABLE_STATION_IDS = [1, 2, 3, 4, 5, 6, 7, 8,   
+  SIMA_WEBROOT          = "http://www.nl.gob.mx/?P=sima_metropolitano&url=SistemaGubernamentales/sima/ReporteDiarioDetallado.aspx"
   
   def initialize
     @agent = Mechanize.new
@@ -15,28 +14,42 @@ class SimaParser
       timestamp:  Time.now.to_i,
       station_id: station_number,
       station_name: page.search("#divUbicacion").children.first.to_s.strip,
-      contaminants: collect_table_values(page, "#dgContaminantes  tr.itemStyle"),
-      weather_data: collect_table_values(page, "#dgMeterologicos  tr.itemStyle")
+      contaminants: get_data_in_hash(page, "#dgContaminantes  tr.itemStyle"),
+      weather_data: get_data_in_hash(page, "#dgMeterologicos  tr.itemStyle")
     }
   end
   
   def convert_label_to_symbol(label_str)
     case label_str
-    when /PM10/ then :pm10
-    when /Ozono/ then :ozone
-    when /CO/ then :co
-    when /SO2/ then :so2
-    when /NO2/ then :no2
-    when /PM2\.5/ then :pm25
+    when /PM10/             then :pm10
+    when /Ozono/            then :ozone
+    when /CO/               then :co
+    when /SO2/              then :so2
+    when /NO2/              then :no2
+    when /PM2\.5/           then :pm25
     when /elocidad.*viento/ then :wind_speed
-    when /emperatura/ then :temperature
-    when /relativa/ then :relative_humidity
-    when /proveniente/ then :wind_direction
-    when /media/ then :average_pressure
-    when /atmos/ then :atmospheric_pressure
-    when /luvia/ then :milimeters_of_rain
-    when /solar/ then :solar_radiation
+    when /emperatura/       then :temperature
+    when /relativa/         then :relative_humidity
+    when /proveniente/      then :wind_direction
+    when /media/            then :average_pressure
+    when /atmos/            then :atmospheric_pressure
+    when /luvia/            then :milimeters_of_rain
+    when /solar/            then :solar_radiation
     else label_str            
+    end
+  end
+  
+  def convert_string_to_usable_type(string_value)
+    string_value.to_f
+  end
+  
+  def get_data_in_hash(page, xpath_search)
+    array_of_values = collect_table_values(page, xpath_search)
+    array_of_values.inject(Hash.new) do |memo, object|
+      metric_name               = object[0]
+      memo[metric_name]         = { value: convert_string_to_usable_type(object[1]) }
+      memo[metric_name][:extra] = object[2] if object.count == 3
+      memo
     end
   end
   
@@ -59,12 +72,12 @@ class SimaParser
   end
   
   def parse_available_stations
-    AVAILABLE_STATION_IDS.collect do |station_id|
-      parse_station(station_id)
+    AVAILABLE_STATION_IDS.inject(Hash.new) do |memo, station_id|
+      memo[station_id] = parse_station(station_id)
+      memo
     end
   end
   
-
 end
 
 
